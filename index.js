@@ -34,7 +34,7 @@ app.post('/api/play/:soundName', (req, res) => {
     }
     const player = spawn(
         'pw-cat',
-        ['-p', '--target="TeamSpeak"', targetFile],
+        ['-p', '--target="TeamSpeak"', `'${targetFile}'`],
         { shell: true });
     const playId = `${soundName}_${Date.now()}`;
     activePlays.set(playId, player);

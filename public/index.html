@@ -94,7 +94,7 @@
 
         async function loadSoundboard() {
             try {
-                const response = await fetch('/api/sounds');
+                const response = await fetch('./api/sounds');
                 const files = await response.json();
                 const grid = document.getElementById('grid');
                 grid.innerHTML = ''; // Clear fallback states
@@ -116,7 +116,7 @@
             // Add playing class for user feedback
             buttonElement.classList.add('playing');
             try {
-                const response = await fetch(`/api/play/${filename}`, {
+                const response = await fetch(`./api/play/${filename}`, {
                     method: 'POST'
                 });
 
