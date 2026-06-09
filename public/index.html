@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Native PipeWire Soundboard</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --playing-color: #22c55e;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+
+        .soundboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 1rem;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .sound-btn {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border: 2px solid transparent;
+            padding: 1.5rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .sound-btn:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent-color);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        }
+
+        .sound-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Dynamic visual feedback states */
+        .sound-btn.playing {
+            border-color: var(--playing-color);
+            background-color: #052e16;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Soundboard</h1>
+
+    <div class="soundboard-grid" id="grid">
+        </div>
+
+    <script>
+
+        async function loadSoundboard() {
+            try {
+                const response = await fetch('/api/sounds');
+                const files = await response.json();
+                const grid = document.getElementById('grid');
+                grid.innerHTML = ''; // Clear fallback states
+                files.forEach(filename => {
+                    const button = document.createElement('button');
+                    button.className = 'sound-btn';
+                    // Strip extensions like .ogg or .wav for a cleaner UI button label
+                    button.innerText = filename.replace(/\.[^/.]+$/, ""); 
+                    button.onclick = () => playSound(filename, button);
+                    grid.appendChild(button);
+                });
+            } catch (err) {
+                console.error("Failed to load soundboard inventory:", err);
+                document.getElementById('grid').innerHTML = `<p style="color: #ef4444;">Could not connect to Express backend api backend server.</p>`;
+            }
+        }
+
+        async function playSound(filename, buttonElement) {
+            // Add playing class for user feedback
+            buttonElement.classList.add('playing');
+            try {
+                const response = await fetch(`/api/play/${filename}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Playback rejected by server');
+
+            } catch (err) {
+                console.error("Playback execution error:", err);
+                buttonElement.style.borderColor = '#ef4444'; // Red error border fallback
+            } finally {
+                // Remove the active UI glow state once the server confirms deployment
+                // (Or when the track finishes, depending on your endpoint design)
+                setTimeout(() => buttonElement.classList.remove('playing'), 1000);
+            }
+        }
+        window.onload = loadSoundboard;
+    </script>
+</body>
+</html>
