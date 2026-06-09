@@ -29,12 +29,12 @@ app.get('/api/sounds', (req, res) => {
 app.post('/api/play/:soundName', (req, res) => {
     const { soundName } = req.params;
     const targetFile = path.join(SOUNDS_DIR, `${soundName}`);
+    console.log('Playing', targetFile);
     if (!fs.existsSync(targetFile)) {
         return res.status(404).json({ error: "Sound not found" });
     }
     const player = spawn(
-        'pw-cat',
-        ['-p', '--target="TeamSpeak"', `'${targetFile}'`],
+        `pw-cat -p --target="TeamSpeak" "${targetFile}"`,
         { shell: true });
     const playId = `${soundName}_${Date.now()}`;
     activePlays.set(playId, player);
