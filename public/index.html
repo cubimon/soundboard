@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Native PipeWire Soundboard</title>
+    <title>Soundboard</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -34,6 +35,20 @@
         .subtitle {
             color: #94a3b8;
             margin-bottom: 2rem;
+        }
+
+        .soundboard-categories {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .soundboard-categories>div {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 1rem;
+            width: 100%;
+            max-width: 800px;
         }
 
         .soundboard-grid {
@@ -70,6 +85,10 @@
             transform: translateY(0);
         }
 
+        #stop-all {
+            margin: 2rem;
+        }
+
         /* Dynamic visual feedback states */
         .sound-btn.playing {
             border-color: var(--playing-color);
@@ -78,34 +97,107 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
         }
     </style>
 </head>
+
 <body>
 
     <h1>Soundboard</h1>
 
+    <button class="sound-btn" id="stop-all" onclick="stop()">Stop</button>
+
+    <div class="soundboard-categories" id="categories">
+    </div>
+
+    <h2>Unkategorisiert</h2>
+
     <div class="soundboard-grid" id="grid">
-        </div>
+    </div>
 
     <script>
 
+        const defaultStructure = {
+            'Deutsche Memes': [
+                'Alarm',
+                'Alpecin',
+                'Halt Stop',
+                'Ich hab garnichts gemacht',
+                'Ich habe fertig - Trapattoni',
+                'Ich muss raus',
+                'Jorge drei',
+                'Kann es sein dass du dumm bist oder sowas',
+                'Nicht so tief Rüdiger',
+                'Schauen wir mal was wird',
+                'Was ist denn mit Karsten los',
+                'Was machen Sachen',
+                'Ich bin der Uwe und ich bin auch dabei'
+            ]
+        }
+
+        function renderButton(filename, alias) {
+            const button = document.createElement('button');
+            button.className = 'sound-btn';
+            // Strip extensions like .ogg or .wav for a cleaner UI button label
+            button.innerText = alias ?? filename.replace(/\.[^/.]+$/, "");
+            button.onclick = () => playSound(filename, button);
+            return button;
+        }
+
+        function renderStructuredFiles(files, structure) {
+            let remainingFiles = [...files];
+            const categoriesDiv = document.getElementById('categories');
+            for (const categoryName in structure) {
+                const categoryDiv = document.createElement('div');
+                const categoryHeader = document.createElement('h2');
+                categoryHeader.innerText = categoryName;
+                categoriesDiv.append(categoryHeader);
+                const categoryFiles = structure[categoryName];
+                for (const entry of categoryFiles) {
+                    let filename;
+                    let alias
+                    if (typeof entry === 'string') {
+                        filename = entry;
+                    } else if (typeof entry === 'object') {
+                        filename = entry?.file;
+                        alias = entry?.alias;
+                    }
+                    if (!filename.endsWith('.ogg')) {
+                        filename = filename + '.ogg';
+                    }
+                    categoryDiv.append(renderButton(filename, alias));
+                    remainingFiles = remainingFiles.filter(f => f !== filename);
+                }
+                categoriesDiv.append(categoryDiv);
+            }
+            return remainingFiles;
+        }
+
+        function renderDefaultFiles(files) {
+            const grid = document.getElementById('grid');
+            files.forEach(filename => {
+                grid.appendChild(renderButton(filename));
+            });
+        }
+
         async function loadSoundboard() {
             try {
-                const response = await fetch('./api/sounds');
-                const files = await response.json();
                 const grid = document.getElementById('grid');
+                const structure = defaultStructure;
+                const response = await fetch('./api/sounds');
+                let files = await response.json();
                 grid.innerHTML = ''; // Clear fallback states
-                files.forEach(filename => {
-                    const button = document.createElement('button');
-                    button.className = 'sound-btn';
-                    // Strip extensions like .ogg or .wav for a cleaner UI button label
-                    button.innerText = filename.replace(/\.[^/.]+$/, ""); 
-                    button.onclick = () => playSound(filename, button);
-                    grid.appendChild(button);
-                });
+                files = renderStructuredFiles(files, structure);
+                renderDefaultFiles(files);
             } catch (err) {
                 console.error("Failed to load soundboard inventory:", err);
                 document.getElementById('grid').innerHTML = `<p style="color: #ef4444;">Could not connect to Express backend api backend server.</p>`;
@@ -131,7 +223,16 @@
                 setTimeout(() => buttonElement.classList.remove('playing'), 1000);
             }
         }
+
+        async function stop() {
+            const response = await fetch('./api/panic', {
+                method: 'POST'
+            });
+            if (!response.ok) throw new Error('Failed to stop playback');
+        }
+
         window.onload = loadSoundboard;
     </script>
 </body>
+
 </html>
