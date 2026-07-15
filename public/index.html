@@ -49,15 +49,46 @@
             align-items: center;
         }
 
-        .category > div {
+        .category-header {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .category-buttons {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
             gap: 1rem;
-            width: 100%;
-            max-width: 800px;
+            width: 800px;
         }
 
-        .sound-btn {
+        .mode-view {
+            .mode-edit-btn {
+                display: block;
+            }
+            .mode-view-btn,
+            .new-category-btn,
+            .delete-btn {
+                display: none;
+            }
+        }
+
+        .mode-edit {
+            .mode-edit-btn {
+                display: none;
+            }
+            .mode-view-btn,
+            .new-category-btn,
+            .delete-btn {
+                display: block;
+            }
+        }
+
+        .sound-btn,
+        #general-actions button,
+        .delete-btn {
             background-color: var(--card-bg);
             color: var(--text-color);
             border: 2px solid transparent;
@@ -99,8 +130,15 @@
             animation: pulse 1.5s infinite;
         }
 
-        #stop-all {
-            margin: 2rem;
+        .delete-btn {
+        }
+
+        #general-actions {
+            width: 800px;
+            display: flex;
+            flex-direction: row;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
         }
 
         @keyframes pulse {
@@ -121,9 +159,14 @@
 
     <h1>Soundboard</h1>
 
-    <button class="sound-btn" id="stop-all" onclick="stop()">Stop</button>
+    <div class="mode-view" id="general-actions">
+        <button class="stop-btn" onclick="stop()">🛑 Stop all sounds</button>
+        <button class="mode-edit-btn" onclick="toggleEdit()">✏️ Edit</button>
+        <button class="mode-view-btn" onclick="toggleView()">👁️ View</button>
+        <button class="new-category-btn" onclick="newCategory()">➕ New category</button>
+    </div>
 
-    <div class="soundboard-categories" id="categories">
+    <div class="soundboard-categories mode-view" id="categories">
     </div>
 
     <script src=" https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js "></script>
@@ -149,46 +192,83 @@
                 ]
             }
         ];
+        let mode = 'view';
+        const sortables = [];
 
         function renderButton(file, alias) {
             const button = document.createElement('button');
             button.className = 'sound-btn';
-            button.draggable = true;
+            button.draggable = mode === 'edit';
             // Strip extensions like .ogg or .wav for a cleaner UI button label
             button.innerText = alias ?? file.replace(/\.[^/.]+$/, '');
             button.dataset.file = file;
-            button.onclick = () => playSound(file, button);
+            button.onclick = () => buttonClick(file, button);
             return button;
+        }
+
+        function entryFile(entry) {
+            let file;
+            if (typeof entry === 'string') {
+                file = entry;
+            } else if (typeof entry === 'object') {
+                file = entry?.file;
+            }
+            if (!file.endsWith('.ogg')) {
+                file = file + '.ogg';
+            }
+            return file;
+        }
+
+        function renderCategoryHeader(categoryName, categoryDiv) {
+            const categoryHeaderDiv = document.createElement('div');
+            categoryHeaderDiv.classList.add('category-header')
+            const categoryHeaderText = document.createElement('h2');
+            categoryHeaderText.innerText = categoryName;
+            categoryHeaderText.onclick = () => renameCategory(categoryHeaderText);
+            categoryHeaderDiv.append(categoryHeaderText);
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-btn');
+            deleteButton.innerText = '🗑️ Delete';
+            deleteButton.onclick = () => deleteCategory(categoryDiv);
+            categoryHeaderDiv.append(deleteButton);
+            return categoryHeaderDiv;
+        }
+
+        function renderCategory(categoryName, categoryFiles) {
+            const categoryDiv = document.createElement('div');
+            categoryDiv.classList.add('category');
+            const categoryHeader = renderCategoryHeader(
+                categoryName, categoryDiv);
+            categoryDiv.append(categoryHeader);
+            const categoryButtonsDiv = document.createElement('div');
+            categoryButtonsDiv.classList.add('category-buttons');
+            for (const entry of categoryFiles) {
+                let file = entryFile(entry);
+                let alias;
+                if (typeof entry === 'object') {
+                    alias = entry?.alias;
+                }
+                categoryButtonsDiv.append(renderButton(file, alias));
+            }
+            categoryDiv.append(categoryButtonsDiv);
+            sortables.push(new Sortable(categoryButtonsDiv, {
+                group: 'sound-btn',
+                animation: 150,
+                ghostClass: 'button-ghost',
+                onEnd: saveSoundboard
+            }));
+            return categoryDiv
         }
 
         function renderStructuredFiles(files, structure) {
             let remainingFiles = [...files];
             const categoriesDiv = document.getElementById('categories');
             for (const category of structure) {
-                const categoryName = category.name;
-                const categoryDiv = document.createElement('div');
-                categoryDiv.classList.add('category');
-                const categoryHeader = document.createElement('h2');
-                categoryHeader.innerText = categoryName;
-                categoryDiv.append(categoryHeader);
-                const categoryButtonsDiv = document.createElement('div');
-                const categoryFiles = category.entries;
-                for (const entry of categoryFiles) {
-                    let file;
-                    let alias
-                    if (typeof entry === 'string') {
-                        file = entry;
-                    } else if (typeof entry === 'object') {
-                        file = entry?.file;
-                        alias = entry?.alias;
-                    }
-                    if (!file.endsWith('.ogg')) {
-                        file = file + '.ogg';
-                    }
-                    categoryButtonsDiv.append(renderButton(file, alias));
+                const categoryDiv = renderCategory(category.name, category.entries);
+                for (const entry of category.entries) {
+                    const file = entryFile(entry);
                     remainingFiles = remainingFiles.filter(f => f !== file);
                 }
-                categoryDiv.append(categoryButtonsDiv);
                 categoriesDiv.append(categoryDiv);
             }
             return remainingFiles;
@@ -196,27 +276,8 @@
 
         function renderDefaultFiles(files) {
             const categoriesDiv = document.getElementById('categories');
-            const categoryDiv = document.createElement('div');
-            categoryDiv.classList.add('category');
-            const categoryHeader = document.createElement('h2');
-            categoryHeader.innerText = 'Unkategorisiert';
-            categoryDiv.append(categoryHeader);
-            const categoryButtonsDiv = document.createElement('div');
-            files.forEach(file => {
-                categoryButtonsDiv.appendChild(renderButton(file));
-            });
-            categoryDiv.append(categoryButtonsDiv);
+            const categoryDiv = renderCategory('Unkategorisiert', files);
             categoriesDiv.append(categoryDiv);
-        }
-
-        function makeSortable(categoryDiv) {
-            const categoryName = categoryDiv.children[0].innerText;
-            new Sortable(categoryDiv.children[1], {
-                group: 'sound-btn',
-                animation: 150,
-                ghostClass: 'button-ghost',
-                onEnd: saveSoundboard
-            });
         }
 
         async function playSound(file, buttonElement) {
@@ -226,9 +287,7 @@
                 const response = await fetch(`./api/play/${file}`, {
                     method: 'POST'
                 });
-
                 if (!response.ok) throw new Error('Playback rejected by server');
-
             } catch (err) {
                 console.error('Playback execution error:', err);
                 buttonElement.style.borderColor = '#ef4444'; // Red error border fallback
@@ -239,6 +298,22 @@
             }
         }
 
+        function renameButton(buttonElement) {
+            const newName = prompt('New sound name')?.trim();
+            if (newName) {
+                buttonElement.innerText = newName;
+            }
+            saveSoundboard();
+        }
+
+        async function buttonClick(file, buttonElement) {
+            if (mode === 'view') {
+                await playSound(file, buttonElement);
+            } else if (mode === 'edit') {
+                renameButton(buttonElement);
+            }
+        }
+
         async function stop() {
             const response = await fetch('./api/panic', {
                 method: 'POST'
@@ -246,11 +321,67 @@
             if (!response.ok) throw new Error('Failed to stop playback');
         }
 
+        function renameCategory(categoryHeaderText) {
+            if (mode !== 'edit') {
+                return;
+            }
+            const newName = prompt('New category name')?.trim();
+            if (newName) {
+                categoryHeaderText.innerText = newName;
+            }
+            saveSoundboard();
+        }
+
+        async function newCategory() {
+            const name = prompt('New category name');
+            const categoriesDiv = document.getElementById('categories');
+            const categoryDiv = renderCategory(name, []);
+            categoriesDiv.prepend(categoryDiv);
+            saveSoundboard();
+        }
+
+        function deleteCategory(categoryDiv) {
+            categoryDiv.remove();
+            saveSoundboard();
+        }
+
+        function toggleEdit() {
+            const categoriesDiv = document.getElementById('categories');
+            const generalActionsDiv = document.getElementById('general-actions');
+            for (const div of [categoriesDiv, generalActionsDiv]) {
+                div.classList.remove('mode-view');
+                div.classList.add('mode-edit');
+            }
+            for (const sortable of sortables) {
+                sortable.option('disabled', false);
+            }
+            for (const button of document.querySelectorAll('.sound-btn')) {
+                button.draggable = true;
+            }
+            mode = 'edit';
+        }
+
+        function toggleView() {
+            const categoriesDiv = document.getElementById('categories');
+            const generalActionsDiv = document.getElementById('general-actions');
+            for (const div of [categoriesDiv, generalActionsDiv]) {
+                div.classList.remove('mode-edit');
+                div.classList.add('mode-view');
+            }
+            for (const sortable of sortables) {
+                sortable.option('disabled', true);
+            }
+            for (const button of document.querySelectorAll('.sound-btn')) {
+                button.draggable = false;
+            }
+            mode = 'view';
+        }
+
         function saveSoundboard() {
             const categoryDivs = document.querySelectorAll('.category');
             const structure = [];
             for (const category of categoryDivs) {
-                const name = category.children[0].innerText;
+                const name = category.children[0].children[0].innerText;
                 let entries = [...category.children[1].children];
                 entries = entries.map(e => {
                     return {
@@ -275,17 +406,19 @@
                 const response = await fetch('./api/sounds');
                 let files = await response.json();
                 files = renderStructuredFiles(files, structure);
-                renderDefaultFiles(files);
+                if (files.length > 0) {
+                    renderDefaultFiles(files);
+                }
                 const categoriesDiv = document.querySelector('#categories');
                 const categoryDivs = document.querySelectorAll('.category');
-                new Sortable(categoriesDiv, {
+                sortables.push(new Sortable(categoriesDiv, {
                     group: 'category',
                     animation: 150,
                     ghostClass: 'button-ghost',
                     onEnd: saveSoundboard
-                });
-                for (const categoryDiv of categoryDivs) {
-                    makeSortable(categoryDiv);
+                }));
+                for (const sortable of sortables) {
+                    sortable.option('disabled', true);
                 }
             } catch (err) {
                 console.error('Failed to load soundboard inventory:', err);
