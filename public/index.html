@@ -129,59 +129,64 @@
     <script src=" https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js "></script>
     <script>
 
-        const defaultStructure = {
-            'Deutsche Memes': [
-                'Alarm',
-                'Alpecin',
-                'Halt Stop',
-                'Ich hab garnichts gemacht',
-                'Ich habe fertig - Trapattoni',
-                'Ich muss raus',
-                'Jorge drei',
-                'Kann es sein dass du dumm bist oder sowas',
-                'Nicht so tief Rüdiger',
-                'Schauen wir mal was wird',
-                'Was ist denn mit Karsten los',
-                'Was machen Sachen',
-                'Ich bin der Uwe und ich bin auch dabei'
-            ]
-        }
+        const defaultStructure = [
+            {
+                name: 'Deutsche Memes',
+                entries: [
+                    'Alarm',
+                    'Alpecin',
+                    'Halt Stop',
+                    'Ich hab garnichts gemacht',
+                    'Ich habe fertig - Trapattoni',
+                    'Ich muss raus',
+                    'Jorge drei',
+                    'Kann es sein dass du dumm bist oder sowas',
+                    'Nicht so tief Rüdiger',
+                    'Schauen wir mal was wird',
+                    'Was ist denn mit Karsten los',
+                    'Was machen Sachen',
+                    'Ich bin der Uwe und ich bin auch dabei'
+                ]
+            }
+        ];
 
-        function renderButton(filename, alias) {
+        function renderButton(file, alias) {
             const button = document.createElement('button');
             button.className = 'sound-btn';
             button.draggable = true;
             // Strip extensions like .ogg or .wav for a cleaner UI button label
-            button.innerText = alias ?? filename.replace(/\.[^/.]+$/, '');
-            button.onclick = () => playSound(filename, button);
+            button.innerText = alias ?? file.replace(/\.[^/.]+$/, '');
+            button.dataset.file = file;
+            button.onclick = () => playSound(file, button);
             return button;
         }
 
         function renderStructuredFiles(files, structure) {
             let remainingFiles = [...files];
             const categoriesDiv = document.getElementById('categories');
-            for (const categoryName in structure) {
+            for (const category of structure) {
+                const categoryName = category.name;
                 const categoryDiv = document.createElement('div');
                 categoryDiv.classList.add('category');
                 const categoryHeader = document.createElement('h2');
                 categoryHeader.innerText = categoryName;
                 categoryDiv.append(categoryHeader);
                 const categoryButtonsDiv = document.createElement('div');
-                const categoryFiles = structure[categoryName];
+                const categoryFiles = category.entries;
                 for (const entry of categoryFiles) {
-                    let filename;
+                    let file;
                     let alias
                     if (typeof entry === 'string') {
-                        filename = entry;
+                        file = entry;
                     } else if (typeof entry === 'object') {
-                        filename = entry?.file;
+                        file = entry?.file;
                         alias = entry?.alias;
                     }
-                    if (!filename.endsWith('.ogg')) {
-                        filename = filename + '.ogg';
+                    if (!file.endsWith('.ogg')) {
+                        file = file + '.ogg';
                     }
-                    categoryButtonsDiv.append(renderButton(filename, alias));
-                    remainingFiles = remainingFiles.filter(f => f !== filename);
+                    categoryButtonsDiv.append(renderButton(file, alias));
+                    remainingFiles = remainingFiles.filter(f => f !== file);
                 }
                 categoryDiv.append(categoryButtonsDiv);
                 categoriesDiv.append(categoryDiv);
@@ -197,8 +202,8 @@
             categoryHeader.innerText = 'Unkategorisiert';
             categoryDiv.append(categoryHeader);
             const categoryButtonsDiv = document.createElement('div');
-            files.forEach(filename => {
-                categoryButtonsDiv.appendChild(renderButton(filename));
+            files.forEach(file => {
+                categoryButtonsDiv.appendChild(renderButton(file));
             });
             categoryDiv.append(categoryButtonsDiv);
             categoriesDiv.append(categoryDiv);
@@ -210,17 +215,15 @@
                 group: 'sound-btn',
                 animation: 150,
                 ghostClass: 'button-ghost',
-                onEnd: () => {
-                    console.log('end sort');
-                }
+                onEnd: saveSoundboard
             });
         }
 
-        async function playSound(filename, buttonElement) {
+        async function playSound(file, buttonElement) {
             // Add playing class for user feedback
             buttonElement.classList.add('playing');
             try {
-                const response = await fetch(`./api/play/${filename}`, {
+                const response = await fetch(`./api/play/${file}`, {
                     method: 'POST'
                 });
 
@@ -243,9 +246,32 @@
             if (!response.ok) throw new Error('Failed to stop playback');
         }
 
+        function saveSoundboard() {
+            const categoryDivs = document.querySelectorAll('.category');
+            const structure = [];
+            for (const category of categoryDivs) {
+                const name = category.children[0].innerText;
+                let entries = [...category.children[1].children];
+                entries = entries.map(e => {
+                    return {
+                        file: e.dataset.file,
+                        alias: e.innerText,
+                    };
+                });
+                structure.push({
+                    name,
+                    entries
+                })
+            }
+            localStorage.setItem('config', JSON.stringify(structure));
+        }
+
         async function loadSoundboard() {
             try {
-                const structure = defaultStructure;
+                const savedData = localStorage.getItem('config');
+                const structure = savedData
+                    ? JSON.parse(savedData)
+                    : defaultStructure;
                 const response = await fetch('./api/sounds');
                 let files = await response.json();
                 files = renderStructuredFiles(files, structure);
@@ -256,9 +282,7 @@
                     group: 'category',
                     animation: 150,
                     ghostClass: 'button-ghost',
-                    onEnd: () => {
-                        console.log('end sort');
-                    }
+                    onEnd: saveSoundboard
                 });
                 for (const categoryDiv of categoryDivs) {
                     makeSortable(categoryDiv);
