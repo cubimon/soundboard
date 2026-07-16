@@ -70,6 +70,21 @@ app.post('/api/panic', (req, res) => {
     return res.status(200).json({ status: 'all cleared' });
 });
 
+let config = null;
+
+app.get('/api/config', async (req, res) => {
+    if (!config) {
+        config = JSON.parse(await fs.readFileSync('config.json', 'utf8'));
+    }
+    return res.status(200).json(config);
+});
+
+app.post('/api/config', async (req, res) => {
+    config = req.body;
+    fs.writeFileSync('config.json', JSON.stringify(config), 'utf-8');
+    return res.status(200).json(config);
+});
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Modern ESM Audio API operational at http://localhost:${PORT}`);
 });

@@ -55,6 +55,7 @@
             justify-content: center;
             gap: 0.5rem;
             margin-bottom: 0.5rem;
+            position: relative;
         }
 
         .category-buttons {
@@ -70,7 +71,10 @@
             }
             .mode-view-btn,
             .new-category-btn,
-            .delete-btn {
+            .delete-btn,
+            .save-btn,
+            .load-btn,
+            .reset-btn {
                 display: none;
             }
         }
@@ -81,9 +85,19 @@
             }
             .mode-view-btn,
             .new-category-btn,
-            .delete-btn {
+            .delete-btn,
+            .save-btn,
+            .load-btn,
+            .reset-btn  {
                 display: block;
             }
+        }
+
+
+        .delete-btn {
+            position: absolute;
+            left: 100%;
+            margin-left: 1rem;
         }
 
         .sound-btn,
@@ -164,6 +178,10 @@
         <button class="mode-edit-btn" onclick="toggleEdit()">✏️ Edit</button>
         <button class="mode-view-btn" onclick="toggleView()">👁️ View</button>
         <button class="new-category-btn" onclick="newCategory()">➕ New category</button>
+        <button class="save-btn" onclick="saveSoundboardRemote()">💾 Save layout</button>
+        <button class="load-btn" onclick="loadSoundboardRemote()">📂 Load layout</button>
+        <button class="reset-btn" onclick="resetLayout()">↩️ Reset layout</button>
+
     </div>
 
     <div class="soundboard-categories mode-view" id="categories">
@@ -298,12 +316,14 @@
             }
         }
 
-        function renameButton(buttonElement) {
-            const newName = prompt('New sound name')?.trim();
+        async function renameButton(buttonElement) {
+            const newName = prompt(
+                'New sound name',
+                buttonElement.innerText)?.trim();
             if (newName) {
                 buttonElement.innerText = newName;
             }
-            saveSoundboard();
+            await saveSoundboard();
         }
 
         async function buttonClick(file, buttonElement) {
@@ -321,15 +341,17 @@
             if (!response.ok) throw new Error('Failed to stop playback');
         }
 
-        function renameCategory(categoryHeaderText) {
+        async function renameCategory(categoryHeaderText) {
             if (mode !== 'edit') {
                 return;
             }
-            const newName = prompt('New category name')?.trim();
+            const newName = prompt(
+                'New category name',
+                categoryHeaderText.innerText)?.trim();
             if (newName) {
                 categoryHeaderText.innerText = newName;
             }
-            saveSoundboard();
+            await saveSoundboard();
         }
 
         async function newCategory() {
@@ -337,12 +359,23 @@
             const categoriesDiv = document.getElementById('categories');
             const categoryDiv = renderCategory(name, []);
             categoriesDiv.prepend(categoryDiv);
-            saveSoundboard();
+            await saveSoundboard();
         }
 
-        function deleteCategory(categoryDiv) {
+        async function deleteCategory(categoryDiv) {
             categoryDiv.remove();
-            saveSoundboard();
+            await saveSoundboard();
+        }
+
+        async function resetLayout() {
+            const result = confirm('Are you sure you want to rest? This can\'t be undone');
+            if (!result) {
+                return;
+            }
+            localStorage.removeItem('config');
+            const categoriesDiv = document.getElementById('categories');
+            categoriesDiv.innerHTML = '';
+            await loadSoundboard();
         }
 
         function toggleEdit() {
@@ -377,7 +410,7 @@
             mode = 'view';
         }
 
-        function saveSoundboard() {
+        function readConfig() {
             const categoryDivs = document.querySelectorAll('.category');
             const structure = [];
             for (const category of categoryDivs) {
@@ -394,7 +427,11 @@
                     entries
                 })
             }
-            localStorage.setItem('config', JSON.stringify(structure));
+            return JSON.stringify(structure);
+        }
+
+        function saveSoundboard() {
+            localStorage.setItem('config', readConfig());
         }
 
         async function loadSoundboard() {
@@ -423,6 +460,34 @@
             } catch (err) {
                 console.error('Failed to load soundboard inventory:', err);
             }
+        }
+
+
+        async function saveSoundboardRemote() {
+            const result = confirm('Are you sure you want save config on remote? This can\'t be undone');
+            if (!result) {
+                return;
+            }
+            await fetch('./api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: readConfig()
+            });
+        }
+
+        async function loadSoundboardRemote() {
+            const result = confirm('Are you sure you want to load remote config? This can\'t be undone');
+            if (!result) {
+                return;
+            }
+            const response = await fetch('./api/config');
+            const structure = await response.json();
+            localStorage.setItem('config', JSON.stringify(structure));
+            const categoriesDiv = document.getElementById('categories');
+            categoriesDiv.innerHTML = '';
+            await loadSoundboard();
         }
 
         window.onload = loadSoundboard;
